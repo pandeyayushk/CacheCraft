@@ -5,12 +5,18 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LRUCache <K,V>{
 
     private final int maximumCapacity;
 
     private final LinkedHashMap<K,Entry<V>> cache;
+
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final Lock readLock = rwLock.readLock();
+    private final Lock writeLock = rwLock.writeLock();
     /**
      * Initializing maximum cache limit and the LinkedHashMap to store cache entries
      * @param maximumCapacity
@@ -43,12 +49,18 @@ public class LRUCache <K,V>{
         Objects.requireNonNull(key,"Key should not be null.");
         Objects.requireNonNull(value,"Value should not be null");
         Objects.requireNonNull(ttl,"Time-to-live must not be null.");
-        Entry<V> newEntry = new Entry<>(value, ttl);
-        removeExpiredEntries();
-        if(!cache.containsKey(key)&&cache.size()==maximumCapacity){
-            evictLeastRecentlyUsed();
+        writeLock.lock();
+        try{
+            Entry<V> newEntry = new Entry<>(value, ttl);
+            removeExpiredEntries();
+            if(!cache.containsKey(key)&&cache.size()==maximumCapacity){
+                evictLeastRecentlyUsed();
+            }
+            cache.put(key,newEntry);
+        }finally {
+            writeLock.unlock();
         }
-        cache.put(key,newEntry);
+
     }
 
     /**
@@ -58,15 +70,20 @@ public class LRUCache <K,V>{
      */
     public V get(K key){
         Objects.requireNonNull(key,"Key should not be null.");
-        Entry<V> entry = cache.get(key);
-        if (entry == null) {
-            return null;
+        writeLock.lock();
+        try {
+            Entry<V> entry = cache.get(key);
+            if (entry == null) {
+                return null;
+            }
+            if (entry.isExpired()) {
+                cache.remove(key);
+                return null;
+            }
+            return entry.getValue();
+        }finally {
+            writeLock.unlock();
         }
-        if (entry.isExpired()) {
-            cache.remove(key);
-            return null;
-        }
-        return entry.getValue();
     }
 
     /**
@@ -78,8 +95,13 @@ public class LRUCache <K,V>{
      */
     public V remove(K key){
         Objects.requireNonNull(key,"Key should not be null.");
-        Entry<V> removedEntry = cache.remove(key);
-        return removedEntry == null ? null : removedEntry.getValue();
+        writeLock.lock();
+        try {
+            Entry<V> removedEntry = cache.remove(key);
+            return removedEntry == null ? null : removedEntry.getValue();
+        }finally {
+            writeLock.unlock();
+        }            
     }
 
     /**
@@ -102,12 +124,22 @@ public class LRUCache <K,V>{
     }
 
     public int size(){
-        removeExpiredEntries();
-        return cache.size();
+        writeLock.lock();
+        try {
+            removeExpiredEntries();
+            return cache.size();
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     public void clear(){
-        cache.clear();
+        writeLock.lock();
+        try {
+            cache.clear();
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     /**
@@ -119,20 +151,25 @@ public class LRUCache <K,V>{
      */
     public boolean containsKey(K key) {
         Objects.requireNonNull(key,"Key should not be null.");
-        if (!cache.containsKey(key)) {
-            return false;
-        }
-        Iterator<Map.Entry<K, Entry<V>>> entries = cache.entrySet().iterator();
-        while (entries.hasNext()) {
-            Map.Entry<K, Entry<V>> cacheEntry = entries.next();
-            if (cacheEntry.getKey().equals(key)) {
-                if (cacheEntry.getValue().isExpired()) {
-                    entries.remove();
-                    return false;
-                }
-                return true;
+        writeLock.lock();
+        try {
+            if (!cache.containsKey(key)) {
+                return false;
             }
+            Iterator<Map.Entry<K, Entry<V>>> entries = cache.entrySet().iterator();
+            while (entries.hasNext()) {
+                Map.Entry<K, Entry<V>> cacheEntry = entries.next();
+                if (cacheEntry.getKey().equals(key)) {
+                    if (cacheEntry.getValue().isExpired()) {
+                        entries.remove();
+                        return false;
+                    }
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            writeLock.unlock();
         }
-        return false;
     }
 }
