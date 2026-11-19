@@ -3,10 +3,13 @@ package com.ayush;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LRUCacheTest {
     private LRUCache<String, Integer> cache;
@@ -26,6 +29,51 @@ class LRUCacheTest {
     @Test
     void getMissingKey() {
         assertNull(cache.get("missing"));
+    }
+
+    @Test
+    void expiredEntryIsRemovedByContainsKey() {
+        cache.put("one", 1, Duration.ofNanos(1));
+
+        assertFalse(cache.containsKey("one"));
+        assertEquals(0, cache.size());
+    }
+
+    @Test
+    void sizeCountsOnlyNonExpiredEntriesAndRemovesExpiredOnes() {
+        cache.put("one", 1, Duration.ofNanos(1));
+        cache.put("two", 2);
+
+        assertEquals(1, cache.size());
+        assertFalse(cache.containsKey("one"));
+        assertTrue(cache.containsKey("two"));
+    }
+
+    @Test
+    void putRemovesExpiredEntriesBeforeLruEviction() {
+        cache.put("one", 1, Duration.ofNanos(1));
+        cache.put("two", 2);
+
+        cache.put("three", 3);
+
+        assertFalse(cache.containsKey("one"));
+        assertTrue(cache.containsKey("two"));
+        assertTrue(cache.containsKey("three"));
+    }
+
+    @Test
+    void ttlMustNotBeNullOrNegative() {
+        assertThrows(NullPointerException.class, () -> cache.put("one", 1, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> cache.put("one", 1, Duration.ofNanos(-1)));
+    }
+
+    @Test
+    void zeroTtlDoesNotExpire() {
+        cache.put("one", 1, Duration.ZERO);
+
+        assertTrue(cache.containsKey("one"));
+        assertEquals(1, cache.get("one"));
     }
 
     @Test
