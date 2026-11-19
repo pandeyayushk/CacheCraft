@@ -7,7 +7,7 @@ public class LRUCache <K,V>{
 
     private final int maximumCapacity;
 
-    private final LinkedHashMap<K,V> cache;
+    private final LinkedHashMap<K,Entry<V>> cache;
     /**
      * Initializing maximum cache limit and the LinkedHashMap to store cache entries
      * @param maximumCapacity
@@ -25,12 +25,24 @@ public class LRUCache <K,V>{
      * Evicts the least recently used entry if necessary.
      */
     public void put(K key,V value){
+        put(key, value, 0);
+    }
+
+    /**
+     * Adds or updates an entry with a time-to-live duration in nanoseconds.
+     * Evicts the least recently used entry if necessary.
+     *
+     * @param key key associated with the value
+     * @param value value to store
+     * @param ttl time-to-live duration in nanoseconds; zero means no expiration
+     */
+    public void put(K key, V value, long ttl){
         Objects.requireNonNull(key,"Key should not be null.");
         Objects.requireNonNull(value,"Value should not be null");
         if(!cache.containsKey(key)&&cache.size()==maximumCapacity){
             evictLeastRecentlyUsed();
         }
-        cache.put(key,value);
+        cache.put(key,new Entry<>(value, ttl));
     }
 
     /**
@@ -40,7 +52,15 @@ public class LRUCache <K,V>{
      */
     public V get(K key){
         Objects.requireNonNull(key,"Key should not be null.");
-        return cache.get(key);
+        Entry<V> entry = cache.get(key);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.isExpired()) {
+            cache.remove(key);
+            return null;
+        }
+        return entry.getValue();
     }
 
     /**
@@ -50,7 +70,8 @@ public class LRUCache <K,V>{
      */
     public V remove(K key){
         Objects.requireNonNull(key,"Key should not be null.");
-        return cache.remove(key);
+        Entry<V> removedEntry = cache.remove(key);
+        return removedEntry == null ? null : removedEntry.getValue();
     }
 
     /**
