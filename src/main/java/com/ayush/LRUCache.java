@@ -1,5 +1,6 @@
 package com.ayush;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 
@@ -25,24 +26,27 @@ public class LRUCache <K,V>{
      * Evicts the least recently used entry if necessary.
      */
     public void put(K key,V value){
-        put(key, value, 0);
+        put(key, value, Duration.ZERO);
     }
 
     /**
-     * Adds or updates an entry with a time-to-live duration in nanoseconds.
+     * Adds or updates an entry with a time-to-live duration.
      * Evicts the least recently used entry if necessary.
      *
      * @param key key associated with the value
      * @param value value to store
-     * @param ttl time-to-live duration in nanoseconds; zero means no expiration
+     * @param ttl time-to-live duration; zero means no expiration
      */
-    public void put(K key, V value, long ttl){
+    public void put(K key, V value, Duration ttl){
         Objects.requireNonNull(key,"Key should not be null.");
         Objects.requireNonNull(value,"Value should not be null");
+        Objects.requireNonNull(ttl,"Time-to-live must not be null.");
+        Entry<V> newEntry = new Entry<>(value, ttl);
+        removeExpiredEntries();
         if(!cache.containsKey(key)&&cache.size()==maximumCapacity){
             evictLeastRecentlyUsed();
         }
-        cache.put(key,new Entry<>(value, ttl));
+        cache.put(key,newEntry);
     }
 
     /**
@@ -86,7 +90,15 @@ public class LRUCache <K,V>{
         cache.remove(leastRecentlyUsedKey);
     }
 
+    /**
+     * Removes all entries whose time-to-live has elapsed.
+     */
+    private void removeExpiredEntries() {
+        cache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    }
+
     public int size(){
+        removeExpiredEntries();
         return cache.size();
     }
 
@@ -96,6 +108,15 @@ public class LRUCache <K,V>{
 
     public boolean containsKey(K key) {
         Objects.requireNonNull(key,"Key should not be null.");
-        return cache.containsKey(key);
+        for (var cacheEntry : cache.entrySet()) {
+            if (cacheEntry.getKey().equals(key)) {
+                if (cacheEntry.getValue().isExpired()) {
+                    cache.remove(key);
+                    return false;
+                }
+                return true;
+            }
+        }
+        return false;
     }
 }
