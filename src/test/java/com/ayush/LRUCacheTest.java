@@ -32,17 +32,43 @@ class LRUCacheTest {
     }
 
     @Test
-    void expiredEntryIsRemovedByContainsKey() {
-        cache.put("one", 1, Duration.ofNanos(1));
+    void getRemovesExpiredEntry() throws InterruptedException {
+        cache.put("one", 1, Duration.ofMillis(50));
+        Thread.sleep(100);
+
+        assertNull(cache.get("one"));
+        assertEquals(0, cache.size());
+    }
+
+    @Test
+    void updatingKeyResetsItsTtl() throws InterruptedException {
+        cache.put("one", 1, Duration.ofMillis(300));
+        cache.put("one", 2, Duration.ofMillis(1_200));
+        Thread.sleep(400);
+
+        assertEquals(2, cache.get("one"));
+    }
+
+    @Test
+    void putRejectsNullKeyAndValue() {
+        assertThrows(NullPointerException.class, () -> cache.put(null, 1));
+        assertThrows(NullPointerException.class, () -> cache.put("one", null));
+    }
+
+    @Test
+    void expiredEntryIsRemovedByContainsKey() throws InterruptedException {
+        cache.put("one", 1, Duration.ofMillis(20));
+        Thread.sleep(50);
 
         assertFalse(cache.containsKey("one"));
         assertEquals(0, cache.size());
     }
 
     @Test
-    void sizeCountsOnlyNonExpiredEntriesAndRemovesExpiredOnes() {
-        cache.put("one", 1, Duration.ofNanos(1));
+    void sizeCountsOnlyNonExpiredEntriesAndRemovesExpiredOnes() throws InterruptedException {
+        cache.put("one", 1, Duration.ofMillis(20));
         cache.put("two", 2);
+        Thread.sleep(50);
 
         assertEquals(1, cache.size());
         assertFalse(cache.containsKey("one"));
@@ -50,9 +76,10 @@ class LRUCacheTest {
     }
 
     @Test
-    void putRemovesExpiredEntriesBeforeLruEviction() {
-        cache.put("one", 1, Duration.ofNanos(1));
+    void putRemovesExpiredEntriesBeforeLruEviction() throws InterruptedException {
+        cache.put("one", 1, Duration.ofMillis(20));
         cache.put("two", 2);
+        Thread.sleep(50);
 
         cache.put("three", 3);
 
@@ -100,7 +127,7 @@ class LRUCacheTest {
     }
 
     @Test
-    void updateExistingKey() {
+    void updatingExistingKeyDoesNotIncreaseSize() {
         cache.put("one", 1);
         cache.put("two", 2);
         cache.put("one", 10);
@@ -108,7 +135,10 @@ class LRUCacheTest {
         assertEquals(2, cache.size());
         assertEquals(10, cache.get("one"));
         assertEquals(2, cache.get("two"));
+    }
 
+    @Test
+    void updatingExistingKeyMakesItMostRecentlyUsed() {
         cache.put("one", 1);
         cache.put("two", 2);
         cache.put("one", 10);
