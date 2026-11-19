@@ -17,6 +17,10 @@ public class LRUCache <K,V>{
     private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Lock readLock = rwLock.readLock();
     private final Lock writeLock = rwLock.writeLock();
+
+    private long hits;
+    private long misses;
+    private long evictions;
     /**
      * Initializing maximum cache limit and the LinkedHashMap to store cache entries
      * @param maximumCapacity
@@ -74,12 +78,15 @@ public class LRUCache <K,V>{
         try {
             Entry<V> entry = cache.get(key);
             if (entry == null) {
+                misses++;
                 return null;
             }
             if (entry.isExpired()) {
                 cache.remove(key);
+                misses++;
                 return null;
             }
+            hits++;
             return entry.getValue();
         }finally {
             writeLock.unlock();
@@ -113,7 +120,9 @@ public class LRUCache <K,V>{
         }
 
         K leastRecentlyUsedKey = cache.keySet().iterator().next();
-        cache.remove(leastRecentlyUsedKey);
+        if (cache.remove(leastRecentlyUsedKey) != null) {
+            evictions++;
+        }
     }
 
     /**
@@ -137,6 +146,63 @@ public class LRUCache <K,V>{
         writeLock.lock();
         try {
             cache.clear();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * Retrieves the number of successful calls to {@link #get(Object)}.
+     *
+     * @return number of cache hits
+     */
+    public long getHits() {
+        readLock.lock();
+        try {
+            return hits;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * Retrieves the number of unsuccessful calls to {@link #get(Object)}.
+     *
+     * @return number of cache misses
+     */
+    public long getMisses() {
+        readLock.lock();
+        try {
+            return misses;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * Retrieves the number of entries removed because the cache reached capacity.
+     * Expired entries are not counted as evictions.
+     *
+     * @return number of capacity evictions
+     */
+    public long getEvictions() {
+        readLock.lock();
+        try {
+            return evictions;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * Resets the hit, miss, and eviction counters to zero.
+     */
+    public void resetStatistics() {
+        writeLock.lock();
+        try {
+            hits = 0;
+            misses = 0;
+            evictions = 0;
         } finally {
             writeLock.unlock();
         }
