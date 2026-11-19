@@ -1,7 +1,9 @@
 package com.ayush;
 
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class LRUCache <K,V>{
@@ -70,7 +72,9 @@ public class LRUCache <K,V>{
     /**
      * Removes a specific entry by key.
      *
-     * @return removed value, or null if absent
+     * Returns the stored value even if the entry has expired.
+     *
+     * @return removed value, or null if the key is absent
      */
     public V remove(K key){
         Objects.requireNonNull(key,"Key should not be null.");
@@ -106,12 +110,24 @@ public class LRUCache <K,V>{
         cache.clear();
     }
 
+    /**
+     * Checks whether the cache contains a non-expired entry for the key.
+     * Removes the entry if it has expired without updating its access order.
+     *
+     * @param key key to check
+     * @return true if a non-expired entry exists, otherwise false
+     */
     public boolean containsKey(K key) {
         Objects.requireNonNull(key,"Key should not be null.");
-        for (var cacheEntry : cache.entrySet()) {
+        if (!cache.containsKey(key)) {
+            return false;
+        }
+        Iterator<Map.Entry<K, Entry<V>>> entries = cache.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<K, Entry<V>> cacheEntry = entries.next();
             if (cacheEntry.getKey().equals(key)) {
                 if (cacheEntry.getValue().isExpired()) {
-                    cache.remove(key);
+                    entries.remove();
                     return false;
                 }
                 return true;
