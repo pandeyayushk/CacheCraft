@@ -1,5 +1,8 @@
 package com.ayush;
 
+import java.time.Duration;
+import java.util.Objects;
+
 /**
  * Stores a cache value and its expiration time.
  *
@@ -11,18 +14,20 @@ public class Entry<V> {
     private final long expirationTime;
 
     /**
-     * Creates an entry with a value and a time-to-live duration in nanoseconds.
+     * Creates an entry with a value and a time-to-live duration.
      *
      * @param value value stored in the entry
-     * @param ttl time-to-live duration in nanoseconds; zero means no expiration
+     * @param ttl time-to-live duration; zero means no expiration
+     * @throws NullPointerException if the time-to-live is null
      * @throws IllegalArgumentException if the time-to-live is negative
      */
-    public Entry(V value, long ttl) {
-        if (ttl < 0) {
+    public Entry(V value, Duration ttl) {
+        Objects.requireNonNull(ttl, "Time-to-live must not be null.");
+        if (ttl.isNegative()) {
             throw new IllegalArgumentException("Time-to-live must not be negative.");
         }
         this.value = value;
-        this.expirationTime = ttl == 0 ? 0 : System.nanoTime() + ttl;
+        this.expirationTime = ttl.isZero() ? 0 : System.nanoTime() + ttl.toNanos();
     }
 
     /**
